@@ -1,0 +1,57 @@
+add = {"address": "", "values": []}
+me = get_shell.host_computer
+
+msf = include_lib("/lib/metaxploit.so")
+cryptLib = include_lib("/lib/crypto.so")
+session_pointers = []
+
+//check for valid parameters
+if len(params) == 0 or params.indexOf("-h") or not is_valid_ip(params[0]) then
+	exit("Usage : [target_ip] [target_port]")
+end if
+target = params[0]
+port = params[1].to_int
+
+//trying to connect to target, on success dumps the library
+session = msf.net_use(target, port)
+if not session then
+	exit("Can't establish null session, quitting.")
+end if
+sessionLib = session.dump_lib
+print("Found : " + sessionLib.lib_name + " (" + sessionLib.version + ")")
+pointers = msf.scan(sessionLib)
+print(pointers)
+
+//shows unsafe values for the found pointers
+for p in pointers
+	memory_scan = msf.scan_address(sessionLib, p)
+    lastIndex = -1
+    vulnerabilities = []		//credits to slasko for the parsing
+    while(memory_scan.indexOf("Unsafe check:", lastIndex) != null )
+        lastIndex = memory_scan.indexOf("Unsafe check:", lastIndex)
+        lastIndexInt = memory_scan.indexOf("</b>", lastIndex)
+        vulnerability = memory_scan[memory_scan.indexOf("<b>", lastIndex)+3:lastIndexInt]
+        vulnerabilities.push( vulnerability.replace("\n", ""))
+        lastIndex = lastIndexInt
+    end while
+	for vuln in vulnerabilities
+		print(p+":"+vuln)
+		result = sessionLib.overflow(p, vuln)
+		print("Returned : " + result + " (" + typeof(result) + ")")
+		if typeof(result) == "shell" then
+			hashes = result.host_computer.File("/etc/passwd").get_content
+			for line in hashes.split("\n")
+				hash = line[line.indexOf(":") + 1:]
+				print(line[:line.indexOf(":")] + ":" + cryptLib.decipher(hash))
+			end for
+			
+			exit("Success!")
+		end if
+	end for
+end for
+
+while true
+	print(sessionLib.overflow(user_input("Enter pointer : "), user_input("Enter unsafe value : "), user_input("Enter new password : ")))
+end while
+
+print("Finished!")
