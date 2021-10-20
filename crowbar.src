@@ -1,5 +1,4 @@
 add = {"address": "", "values": []}
-me = get_shell.host_computer
 
 msf = include_lib("/lib/metaxploit.so")
 cryptLib = include_lib("/lib/crypto.so")
@@ -38,19 +37,42 @@ for p in pointers
 		print(p+":"+vuln)
 		result = sessionLib.overflow(p, vuln)
 		print("Returned : " + result + " (" + typeof(result) + ")")
-		if typeof(result) == "shell" then
-			hashes = result.host_computer.File("/etc/passwd").get_content
+		if typeof(result) == "shell" then		//case result is a shell, /etc/passwd gets 
+			hashes = result.host_computer.File("/etc/passwd").get_content	//read and a remote shell is opened
 			for line in hashes.split("\n")
 				hash = line[line.indexOf(":") + 1:]
 				print(line[:line.indexOf(":")] + ":" + cryptLib.decipher(hash))
 			end for
 			
-			exit("Success!")
+			print("Found hashes...\nOpening shell UwU!")
+			result.start_terminal
+		//else if : upload file to execute rshell
+		else if typeof(result) == "file" then
+			print(result.name)
+			if result.get_folders then
+				print("Has folders innit.")
+				for folder in result.get_folders 
+					print(folder.name)
+				end for
+			end if
+			if result.get_files then
+				print("Has files innit.")
+				for file in result.get_files
+					print(file.name)
+				end for
+			else if results.get_content then
+				print("Is file.")
+				print(result.get_content)				
+			end if
+		if not user_input("Go on? ") == "y" then
+			exit("What now?")
+		end if
 		end if
 	end for
 end for
 
 while true
+	
 	print(sessionLib.overflow(user_input("Enter pointer : "), user_input("Enter unsafe value : "), user_input("Enter new password : ")))
 end while
 
